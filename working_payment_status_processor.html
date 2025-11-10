@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Status Data Processor</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .upload-section {
+            background: #f8fafc;
+            border: 2px dashed #cbd5e0;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 30px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-section:hover {
+            border-color: #4facfe;
+            background: #f0f9ff;
+        }
+
+        .upload-section.dragover {
+            border-color: #4facfe;
+            background: #dbeafe;
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            color: #64748b;
+            margin-bottom: 20px;
+        }
+
+        .upload-section label {
+            display: block;
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 10px;
+            cursor: pointer;
+        }
+
+        .upload-section p {
+            color: #64748b;
+            font-size: 1rem;
+            margin-bottom: 20px;
+        }
+
+        #fileUpload {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            cursor: pointer;
+        }
+
+        .file-info {
+            background: #e0f2fe;
+            border: 1px solid #b3e5fc;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 15px;
+            display: none;
+        }
+
+        .file-info.show {
+            display: block;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            box-shadow: 0 4px 15px rgba(17, 153, 142, 0.4);
+        }
+
+        .btn-secondary:hover {
+            box-shadow: 0 8px 25px rgba(17, 153, 142, 0.6);
+        }
+
+        .btn-small {
+            padding: 10px 20px;
+            font-size: 0.9rem;
+            border-radius: 25px;
+        }
+
+        .output-section {
+            background: #f8fafc;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            min-height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #output {
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: #1e293b;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+
+        .alert-success {
+            background: #d1fae5;
+            border: 1px solid #86efac;
+            color: #065f46;
+        }
+
+        .alert-error {
+            background: #fee2e2;
+            border: 1px solid #fca5a5;
+            color: #991b1b;
+        }
+
+        /* Results section styling */
+        .summary {
+            background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%);
+            border-radius: 15px;
+            padding: 25px;
+            margin: 30px 0;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        }
+
+        .summary h3 {
+            color: #1e293b;
+            font-size: 1.4rem;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .summary ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .summary li {
+            background: rgba(255, 255, 255, 0.7);
+            margin: 8px 0;
+            padding: 12px 15px;
+            border-radius: 8px;
+            border-left: 4px solid #4facfe;
+        }
+
+        .company-section {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 15px;
+            margin: 25px 0;
+            padding: 25px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(79, 172, 254, 0.2);
+        }
+
+        .company-title {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-size: 1.3rem;
+            font-weight: 700;
+            text-align: center;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .country-section {
+            margin: 20px 0;
+            background: #f8fafc;
+            border-radius: 10px;
+            padding: 20px;
+        }
+
+        .country-title {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            font-size: 1.1rem;
+            font-weight: 600;
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            margin: 15px 0;
+        }
+
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 10px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        td {
+            padding: 12px 10px;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 0.85rem;
+            color: #374151;
+        }
+
+        tr:nth-child(even) {
+            background: #f8fafc;
+        }
+
+        tr:hover {
+            background: #e0f2fe;
+        }
+
+        .company-download {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid #e2e8f0;
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                padding: 30px 20px;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .content {
+                padding: 20px;
+            }
+
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .btn {
+                width: 100%;
+                max-width: 300px;
+            }
+
+            table {
+                font-size: 0.8rem;
+            }
+
+            th, td {
+                padding: 8px 6px;
+            }
+
+            .company-section {
+                padding: 15px;
+            }
+
+            .country-section {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Payment Status Processor</h1>
+            <p>Process and organize your payment data efficiently</p>
+        </div>
+        
+        <div class="content">
+            <div class="upload-section" id="uploadSection">
+                <div class="upload-icon">📊</div>
+                <label for="fileUpload">Upload Excel File</label>
+                <p>Drag and drop your Payment Status Excel file here, or click to browse</p>
+                <input type="file" id="fileUpload" accept=".xlsx, .xls">
+                <div class="file-info" id="fileInfo">
+                    <strong>File selected:</strong> <span id="fileName"></span>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button class="btn" onclick="processData()" id="processBtn" disabled>
+                    Process Data
+                </button>
+                <button class="btn btn-secondary" onclick="downloadAllCompanyFiles()" id="downloadBtn" disabled>
+                    Download All Files
+                </button>
+            </div>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Processing your data...</p>
+            </div>
+
+            <div class="output-section">
+                <div id="output">Upload an Excel file to get started</div>
+            </div>
+
+            <div id="results"></div>
+        </div>
+    </div>
+
+    <script>
+        let workbook;
+        let companies = {};
+        let currentData = null;
+        let headers = ['Country', 'ID', 'CreatedAt', 'CompanyName', 'USD', 'Units'];
+
+        const uploadSection = document.getElementById('uploadSection');
+        const fileUpload = document.getElementById('fileUpload');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const processBtn = document.getElementById('processBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const loading = document.getElementById('loading');
+        const output = document.getElementById('output');
+
+        // File upload handling
+        fileUpload.addEventListener('change', handleFileSelect);
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                fileName.textContent = file.name;
+                fileInfo.classList.add('show');
+                processBtn.disabled = false;
+                output.textContent = 'File selected. Click "Process Data" to continue.';
+                readExcelFile(file);
+            }
+        }
+
+        function readExcelFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    workbook = XLSX.read(data, { type: 'array' });
+                    
+                    // Get the first sheet
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    
+                    // Convert to JSON
+                    currentData = XLSX.utils.sheet_to_json(worksheet);
+                    
+                    showAlert(`File loaded successfully! Found ${currentData.length} rows.`, 'success');
+                    
+                } catch (error) {
+                    showAlert('Error reading file: ' + error.message, 'error');
+                    console.error('Error:', error);
+                }
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+
+        // Drag and drop handling
+        document.addEventListener('dragover', e => e.preventDefault());
+        
+        uploadSection.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadSection.classList.add('dragover');
+        });
+
+        uploadSection.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            uploadSection.classList.remove('dragover');
+        });
+
+        uploadSection.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadSection.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                fileUpload.files = files;
+                handleFileSelect({ target: { files } });
+            }
+        });
+
+        function showAlert(message, type = 'success') {
+            const existingAlert = document.querySelector('.alert');
+            if (existingAlert) {
+                existingAlert.remove();
+            }
+
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            
+            const content = document.querySelector('.content');
+            content.insertBefore(alert, content.firstChild);
+
+            setTimeout(() => {
+                alert.remove();
+            }, 5000);
+        }
+
+        function processData() {
+            if (!currentData || currentData.length === 0) {
+                showAlert('No data to process. Please upload a file first.', 'error');
+                return;
+            }
+
+            loading.classList.add('show');
+            processBtn.disabled = true;
+            output.textContent = 'Processing...';
+
+            try {
+                // Find the correct column names (case-insensitive and flexible)
+                const sampleRow = currentData[0];
+                const availableColumns = Object.keys(sampleRow);
+                
+                function findColumn(possibleNames) {
+                    for (let name of possibleNames) {
+                        // Try exact match first
+                        if (availableColumns.includes(name)) return name;
+                        
+                        // Try case-insensitive match
+                        const found = availableColumns.find(col => 
+                            col.toLowerCase() === name.toLowerCase()
+                        );
+                        if (found) return found;
+                        
+                        // Try partial match
+                        const partial = availableColumns.find(col => 
+                            col.toLowerCase().includes(name.toLowerCase()) ||
+                            name.toLowerCase().includes(col.toLowerCase())
+                        );
+                        if (partial) return partial;
+                    }
+                    return null;
+                }
+                
+                const columnMappings = {
+                    country: findColumn(['Country', 'country']),
+                    id: findColumn(['ID', 'Id', 'id']),
+                    createdAt: findColumn(['CreatedAt', 'Created At', 'Created_At', 'Date Created', 'createdat']),
+                    companyName: findColumn(['CompanyName', 'Company Name', 'Company_Name', 'companyname', 'Company']),
+                    usd: findColumn(['USD', 'usd', 'Amount', 'Price', 'Cost', 'Value', 'Total']),
+                    units: findColumn(['Units', 'units', 'Unit', 'Quantity', 'Qty', 'Count']),
+                    comment: findColumn(['Comment', 'Commnet', 'comment', 'Comments', 'Note', 'Notes'])
+                };
+
+                // Filter and group data by company (original logic)
+                companies = {};
+                let filteredCount = 0;
+                let totalCount = 0;
+
+                currentData.forEach(row => {
+                    totalCount++;
+                    
+                    // Check if we should filter out this row based on comment
+                    const commentValue = row[columnMappings.comment] || '';
+                    const comment = commentValue.toString().toLowerCase();
+                    const shouldFilter = comment.includes('payment received') || comment.includes('paid');
+                    
+                    if (shouldFilter) {
+                        filteredCount++;
+                        return; // Skip this row
+                    }
+
+                    const comp = row[columnMappings.companyName];
+                    if (comp) {
+                        if (!companies[comp]) companies[comp] = {};
+                        const cntry = row[columnMappings.country] || 'Unknown';
+                        if (!companies[comp][cntry]) companies[comp][cntry] = [];
+                        companies[comp][cntry].push([
+                            cntry,
+                            row[columnMappings.id],
+                            row[columnMappings.createdAt],
+                            row[columnMappings.companyName],
+                            row[columnMappings.usd],
+                            row[columnMappings.units]
+                        ]);
+                    }
+                });
+
+                // Generate company displays
+                generateCompanyDisplays();
+                
+                loading.classList.remove('show');
+                processBtn.disabled = false;
+                downloadBtn.disabled = false;
+                
+                const companyCount = Object.keys(companies).length;
+                output.textContent = `Successfully processed ${companyCount} companies. Filtered out ${filteredCount} paid records.`;
+                showAlert(`Processing complete! Found ${companyCount} companies.`);
+                
+            } catch (error) {
+                loading.classList.remove('show');
+                processBtn.disabled = false;
+                output.textContent = 'Error processing file.';
+                showAlert(error.message, 'error');
+            }
+        }
+
+        function generateCompanyDisplays() {
+            const resultsDiv = document.getElementById('results');
+            let html = '<div class="summary"><h3>📊 Processing Summary</h3>';
+            
+            const companyNames = Object.keys(companies);
+            html += `<p><strong>Found ${companyNames.length} companies:</strong></p>`;
+            html += '<ul>';
+            companyNames.forEach(company => {
+                let totalRecords = 0;
+                Object.keys(companies[company]).forEach(country => {
+                    totalRecords += companies[company][country].length;
+                });
+                html += `<li><strong>${company}</strong>: ${totalRecords} payment records</li>`;
+            });
+            html += '</ul></div>';
+
+            // Generate display for each company
+            companyNames.forEach(companyName => {
+                const companyData = companies[companyName];
+                
+                html += `<div class="company-section">`;
+                html += `<div class="company-title">💼 ${companyName} - Payment Status</div>`;
+                
+                // Generate table for each country
+                Object.keys(companyData).sort().forEach(countryName => {
+                    const countryData = companyData[countryName];
+                    
+                    html += `<div class="country-section">`;
+                    html += `<div class="country-title">🌍 ${countryName} (${countryData.length} records)</div>`;
+                    html += '<table>';
+                    html += '<thead><tr>';
+                    html += '<th>Country</th><th>ID</th><th>Created At</th><th>Company Name</th><th>USD</th><th>Units</th>';
+                    html += '</tr></thead><tbody>';
+                    
+                    countryData.forEach(row => {
+                        html += '<tr>';
+                        html += `<td>${row[0]}</td>`;
+                        html += `<td>${row[1]}</td>`;
+                        html += `<td>${row[2]}</td>`;
+                        html += `<td>${row[3]}</td>`;
+                        html += `<td>${row[4]}</td>`;
+                        html += `<td>${row[5]}</td>`;
+                        html += '</tr>';
+                    });
+                    
+                    html += '</tbody></table></div>';
+                });
+                
+                html += `<div class="company-download">`;
+                html += `<button class="btn btn-small btn-secondary" onclick="downloadCompanyFile('${companyName}')">📥 Download ${companyName} Excel File</button>`;
+                html += `</div></div>`;
+            });
+
+            resultsDiv.innerHTML = html;
+        }
+
+        async function downloadCompanyFile(companyName) {
+            try {
+                const companyData = companies[companyName];
+                if (!companyData || Object.keys(companyData).length === 0) {
+                    showAlert('No data found for company: ' + companyName, 'error');
+                    return;
+                }
+
+                const wb = new ExcelJS.Workbook();
+                const ws = wb.addWorksheet('Payments');
+                ws.getColumn(1).width = 15;
+                ws.getColumn(2).width = 10;
+                ws.getColumn(3).width = 20;
+                ws.getColumn(4).width = 40;
+                ws.getColumn(5).width = 20;
+                ws.getColumn(6).width = 10;
+                
+                const borderStyle = {
+                    top: {style: 'thin', color: {argb: 'FF000000'}},
+                    left: {style: 'thin', color: {argb: 'FF000000'}},
+                    bottom: {style: 'thin', color: {argb: 'FF000000'}},
+                    right: {style: 'thin', color: {argb: 'FF000000'}}
+                };
+
+                Object.keys(companyData).sort().forEach(cntry => {
+                    const headerRow = ws.addRow(headers);
+                    headerRow.eachCell((cell) => {
+                        cell.border = borderStyle;
+                        cell.font = { bold: true };
+                        cell.fill = {
+                            type: 'pattern',
+                            pattern: 'solid',
+                            fgColor: { argb: 'FFE6E6FA' }
+                        };
+                    });
+                    
+                    companyData[cntry].forEach(row => {
+                        const dataRow = ws.addRow(row);
+                        dataRow.eachCell((cell) => {
+                            cell.border = borderStyle;
+                        });
+                        dataRow.getCell(3).numFmt = 'mm/dd/yyyy';
+                        dataRow.getCell(5).numFmt = '$#,##0.00';
+                    });
+                    ws.addRow([]);
+                });
+
+                const buffer = await wb.xlsx.writeBuffer();
+                const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `${companyName} payment status.xlsx`;
+                link.click();
+
+                showAlert(`Downloaded: ${companyName} payment status.xlsx`);
+                
+            } catch (error) {
+                showAlert('Error creating Excel file: ' + error.message, 'error');
+                console.error('Download error:', error);
+            }
+        }
+
+        async function downloadAllCompanyFiles() {
+            if (!companies || Object.keys(companies).length === 0) {
+                showAlert('Please process data first before downloading.', 'error');
+                return;
+            }
+
+            loading.classList.add('show');
+            downloadBtn.disabled = true;
+            output.textContent = 'Generating files...';
+
+            try {
+                const zip = new JSZip();
+                
+                for (const comp of Object.keys(companies)) {
+                    const wb = new ExcelJS.Workbook();
+                    const ws = wb.addWorksheet('Payments');
+                    
+                    // Set column widths
+                    ws.getColumn(1).width = 15;
+                    ws.getColumn(2).width = 10;
+                    ws.getColumn(3).width = 20;
+                    ws.getColumn(4).width = 40;
+                    ws.getColumn(5).width = 20;
+                    ws.getColumn(6).width = 10;
+
+                    const borderStyle = {
+                        top: {style: 'thin', color: {argb: 'FF000000'}},
+                        left: {style: 'thin', color: {argb: 'FF000000'}},
+                        bottom: {style: 'thin', color: {argb: 'FF000000'}},
+                        right: {style: 'thin', color: {argb: 'FF000000'}}
+                    };
+
+                    Object.keys(companies[comp]).sort().forEach(cntry => {
+                        const headerRow = ws.addRow(headers);
+                        headerRow.eachCell((cell) => {
+                            cell.border = borderStyle;
+                            cell.font = { bold: true };
+                            cell.fill = {
+                                type: 'pattern',
+                                pattern: 'solid',
+                                fgColor: { argb: 'FFE6E6FA' }
+                            };
+                        });
+
+                        companies[comp][cntry].forEach(row => {
+                            const dataRow = ws.addRow(row);
+                            dataRow.eachCell((cell) => {
+                                cell.border = borderStyle;
+                            });
+                            dataRow.getCell(3).numFmt = 'mm/dd/yyyy';
+                            dataRow.getCell(5).numFmt = '$#,##0.00';
+                        });
+                        
+                        ws.addRow([]);
+                    });
+
+                    const buffer = await wb.xlsx.writeBuffer();
+                    zip.file(`${comp} payment status.xlsx`, buffer);
+                }
+
+                const blob = await zip.generateAsync({type: 'blob'});
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = 'AllCompanies.zip';
+                link.click();
+
+                loading.classList.remove('show');
+                downloadBtn.disabled = false;
+                output.textContent = 'Files downloaded successfully!';
+                showAlert('All company files have been downloaded as a ZIP archive.');
+
+            } catch (error) {
+                loading.classList.remove('show');
+                downloadBtn.disabled = false;
+                output.textContent = 'Error generating files.';
+                showAlert('Error generating download files.', 'error');
+            }
+        }
+    </script>
+</body>
+</html>
